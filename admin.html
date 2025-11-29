@@ -1516,14 +1516,22 @@
             }
         }
 
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-            });
-        }
+       function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            // Ensure we're getting the data URL format
+            const dataUrl = reader.result;
+            console.log('File converted to base64, length:', dataUrl.length);
+            resolve(dataUrl);
+        };
+        reader.onerror = error => {
+            console.error('FileReader error:', error);
+            reject(error);
+        };
+        reader.readAsDataURL(file);
+    });
+}
 
         // Tab switching functionality
         function switchTab(tabName) {
