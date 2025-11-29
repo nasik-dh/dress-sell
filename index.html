@@ -825,6 +825,12 @@
             transform: translateY(-2px);
         }
 
+        .submit-order-btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         /* Footer */
         footer {
             background: #2c3e50;
@@ -918,6 +924,14 @@
             display: block;
         }
 
+        .toast.error {
+            background: #e74c3c;
+        }
+
+        .toast.info {
+            background: #3498db;
+        }
+
         @keyframes slideInUp {
             from {
                 transform: translateX(-50%) translateY(100px);
@@ -949,6 +963,35 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+
+        /* Error Message */
+        .error-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #e74c3c;
+        }
+
+        .error-message i {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .error-message button {
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: #667eea;
+            color: #fff;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .error-message button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
         }
 
         /* Responsive Design */
@@ -1321,8 +1364,8 @@
     <div class="toast" id="toast"></div>
 
     <script>
-        // Configuration
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjMMOnLO2hP_DPvLx3hDTFOq3pH00bH97jnUScdZxWTK06EvFPEVw7x5WT4rTWRQXwUw/exec';
+        // Configuration - UPDATE THIS URL WITH YOUR GOOGLE APPS SCRIPT URL
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwro-YwuYhRHmS-f61JSbZYcY5quo2n9qVAc4ICj3-Au18t2OJ57L6qrv_EUSv9b5qUuA/exec';
 
         // Global variables
         let cart = [];
@@ -1340,23 +1383,62 @@
             productGrid.innerHTML = '';
 
             try {
-                const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=getProducts`);
-                const result = await response.json();
+                console.log('Fetching products from:', GOOGLE_SCRIPT_URL);
+                
+                const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=getProducts`, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
+                
+                console.log('Response status:', response.status);
+                const textResponse = await response.text();
+                console.log('Raw response:', textResponse);
+                
+                const result = JSON.parse(textResponse);
+                console.log('Parsed result:', result);
                 
                 if (result.status === 'success') {
-                    products = result.data;
-                    displayProducts();
+                    if (result.data && result.data.length > 0) {
+                        products = result.data;
+                        console.log('Products loaded:', products.length);
+                        displayProducts();
+                    } else {
+                        console.warn('No products found in sheet');
+                        showNoProductsMessage();
+                    }
                 } else {
-                    throw new Error('Failed to load products');
+                    throw new Error(result.message || 'Failed to load products');
                 }
             } catch (error) {
                 console.error('Error loading products:', error);
-                showToast('Error loading products. Please try again later.');
-                // Fallback to sample data
-                loadSampleProducts();
+                showErrorMessage(error.message);
             } finally {
                 loading.style.display = 'none';
             }
+        }
+
+        function showNoProductsMessage() {
+            const productGrid = document.getElementById('productGrid');
+            productGrid.innerHTML = `
+                <div class="error-message" style="grid-column: 1/-1;">
+                    <i class="fas fa-box-open"></i>
+                    <h3>No Products Available</h3>
+                    <p>There are no products in the database yet. Please add products using the admin panel.</p>
+                </div>
+            `;
+        }
+
+        function showErrorMessage(error) {
+            const productGrid = document.getElementById('productGrid');
+            productGrid.innerHTML = `
+                <div class="error-message" style="grid-column: 1/-1;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error Loading Products</h3>
+                    <p>${error}</p>
+                    <button onclick="loadProducts()">Retry</button>
+                </div>
+            `;
+            showToast('Error loading products: ' + error, 'error');
         }
 
         function displayProducts() {
@@ -1366,7 +1448,10 @@
             // Filter products
             let filteredProducts = currentFilter === 'all' 
                 ? products 
-                : products.filter(p => p.Category === currentFilter);
+                : products.filter(p => {
+                    const category = String(p.Category || '').toLowerCase();
+                    return category === currentFilter.toLowerCase();
+                });
 
             // Sort products
             filteredProducts = sortProducts(filteredProducts, currentSort);
@@ -1391,9 +1476,9 @@
         function sortProducts(productsArray, sortBy) {
             switch(sortBy) {
                 case 'price-low':
-                    return [...productsArray].sort((a, b) => parseFloat(a.Price) - parseFloat(b.Price));
+                    return [...productsArray].sort((a, b) => parseFloat(a.Price || 0) - parseFloat(b.Price || 0));
                 case 'price-high':
-                    return [...productsArray].sort((a, b) => parseFloat(b.Price) - parseFloat(a.Price));
+                    return [...productsArray].sort((a, b) => parseFloat(b.Price || 0) - parseFloat(a.Price || 0));
                 case 'newest':
                     return [...productsArray].sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
                 default:
@@ -1406,26 +1491,27 @@
             const card = document.createElement('div');
             card.className = 'product-card';
             
-            const stars = '★'.repeat(Math.floor(product.Rating)) + '☆'.repeat(5 - Math.floor(product.Rating));
+            const rating = parseFloat(product.Rating || 0);
+            const stars = '★'.repeat(Math.floor(rating)) + '☆'.repeat(5 - Math.floor(rating));
             const hasDiscount = product.OriginalPrice && parseFloat(product.OriginalPrice) > parseFloat(product.Price);
             
             card.innerHTML = `
                 ${product.Badge ? `<div class="product-badge ${product.Badge === 'New' ? 'new' : ''}">${product.Badge}</div>` : ''}
                 <div class="product-image">
-                    <img src="${product.Image}" alt="${product.Name}" onerror="this.src='https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500'">
+                    <img src="${product.Image || 'https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500'}" alt="${product.Name}" onerror="this.src='https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500'">
                 </div>
                 <div class="product-info">
-                    <div class="product-category">${product.Category}</div>
-                    <div class="product-name">${product.Name}</div>
+                    <div class="product-category">${product.Category || 'General'}</div>
+                    <div class="product-name">${product.Name || 'Unnamed Product'}</div>
                     <div class="product-rating">
                         <div class="stars">${stars}</div>
-                        <span class="rating-count">(${product.Reviews})</span>
+                        <span class="rating-count">(${product.Reviews || 0})</span>
                     </div>
                     <div class="product-price">
-                        <span class="current-price">$${parseFloat(product.Price).toFixed(2)}</span>
+                        <span class="current-price">$${parseFloat(product.Price || 0).toFixed(2)}</span>
                         ${hasDiscount ? `<span class="original-price">$${parseFloat(product.OriginalPrice).toFixed(2)}</span>` : ''}
                     </div>
-                    <button class="add-to-cart-btn" onclick="addToCart(${product.ID})">
+                    <button class="add-to-cart-btn" onclick="event.stopPropagation(); addToCart(${product.ID})">
                         <i class="fas fa-shopping-cart"></i> Add to Cart
                     </button>
                 </div>
@@ -1444,12 +1530,12 @@
 
         // View Product Details
         function viewProductDetails(productId) {
-            const product = products.find(p => p.ID === productId);
+            const product = products.find(p => p.ID == productId);
             if (product) {
                 currentProductId = productId;
                 
                 // Update modal content
-                document.getElementById('modalImage').src = product.Image;
+                document.getElementById('modalImage').src = product.Image || 'https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500';
                 document.getElementById('modalTitle').textContent = product.Name;
                 document.getElementById('modalCategory').textContent = product.Category;
                 document.getElementById('modalPrice').textContent = `$${parseFloat(product.Price).toFixed(2)}`;
@@ -1465,9 +1551,10 @@
                 }
                 
                 // Update rating
-                const stars = '★'.repeat(Math.floor(product.Rating)) + '☆'.repeat(5 - Math.floor(product.Rating));
+                const rating = parseFloat(product.Rating || 0);
+                const stars = '★'.repeat(Math.floor(rating)) + '☆'.repeat(5 - Math.floor(rating));
                 document.querySelector('#modalRating .stars').textContent = stars;
-                document.querySelector('#modalRating .rating-count').textContent = `(${product.Reviews})`;
+                document.querySelector('#modalRating .rating-count').textContent = `(${product.Reviews || 0})`;
                 
                 // Update description
                 document.getElementById('modalDescription').textContent = product.Description || 'Premium quality product with excellent craftsmanship.';
@@ -1477,182 +1564,15 @@
             }
         }
 
-        // Sample Products Fallback
-        function loadSampleProducts() {
-            const sampleProducts = [
-                {
-                    ID: 1,
-                    Name: "Classic Denim Jacket",
-                    Category: "men",
-                    Price: 89.99,
-                    OriginalPrice: 129.99,
-                    Image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500",
-                    Badge: "Sale",
-                    Rating: 4.5,
-                    Reviews: 128,
-                    Description: "Premium quality denim jacket with classic fit. Perfect for casual wear and layering. Made from 100% cotton with reinforced stitching for durability.",
-                    Stock: 50,
-                    Status: "Active"
-                },
-                {
-                    ID: 2,
-                    Name: "Elegant Summer Dress",
-                    Category: "women",
-                    Price: 59.99,
-                    OriginalPrice: 79.99,
-                    Image: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=500",
-                    Badge: "New",
-                    Rating: 4.8,
-                    Reviews: 256,
-                    Description: "Beautiful summer dress with floral pattern. Lightweight and comfortable for warm weather. Features a flattering A-line silhouette and adjustable straps.",
-                    Stock: 75,
-                    Status: "Active"
-                },
-                {
-                    ID: 3,
-                    Name: "Kids Playful T-Shirt",
-                    Category: "kids",
-                    Price: 19.99,
-                    Image: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500",
-                    Badge: "",
-                    Rating: 4.3,
-                    Reviews: 89,
-                    Description: "Comfortable cotton t-shirt for kids with fun designs. Perfect for everyday wear. Made from soft, breathable fabric that's gentle on sensitive skin.",
-                    Stock: 100,
-                    Status: "Active"
-                },
-                {
-                    ID: 4,
-                    Name: "Designer Leather Handbag",
-                    Category: "accessories",
-                    Price: 149.99,
-                    OriginalPrice: 199.99,
-                    Image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=500",
-                    Badge: "Sale",
-                    Rating: 4.7,
-                    Reviews: 342,
-                    Description: "Luxurious leather handbag with multiple compartments. Perfect for any occasion. Features gold-tone hardware and an adjustable shoulder strap.",
-                    Stock: 25,
-                    Status: "Active"
-                },
-                {
-                    ID: 5,
-                    Name: "Premium Wool Sweater",
-                    Category: "men",
-                    Price: 79.99,
-                    Image: "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=500",
-                    Badge: "",
-                    Rating: 4.6,
-                    Reviews: 187,
-                    Description: "Warm and comfortable wool sweater for cooler days. Features a classic crew neck and ribbed cuffs for a perfect fit.",
-                    Stock: 60,
-                    Status: "Active"
-                },
-                {
-                    ID: 6,
-                    Name: "Elegant Silk Blouse",
-                    Category: "women",
-                    Price: 69.99,
-                    OriginalPrice: 89.99,
-                    Image: "https://images.unsplash.com/photo-1581044777550-4cfa60707c03?w=500",
-                    Badge: "Sale",
-                    Rating: 4.4,
-                    Reviews: 231,
-                    Description: "Luxurious silk blouse with delicate details. Perfect for both office wear and special occasions. Easy to care for and maintain.",
-                    Stock: 45,
-                    Status: "Active"
-                },
-                {
-                    ID: 7,
-                    Name: "Casual Cotton T-Shirt",
-                    Category: "men",
-                    Price: 24.99,
-                    Image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500",
-                    Badge: "",
-                    Rating: 4.2,
-                    Reviews: 156,
-                    Description: "Comfortable cotton t-shirt perfect for everyday wear. Available in multiple colors and sizes for the perfect fit.",
-                    Stock: 80,
-                    Status: "Active"
-                },
-                {
-                    ID: 8,
-                    Name: "Stylish Running Shoes",
-                    Category: "accessories",
-                    Price: 89.99,
-                    OriginalPrice: 119.99,
-                    Image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500",
-                    Badge: "Sale",
-                    Rating: 4.5,
-                    Reviews: 312,
-                    Description: "High-performance running shoes with advanced cushioning technology. Perfect for athletes and casual runners alike.",
-                    Stock: 40,
-                    Status: "Active"
-                },
-                {
-                    ID: 9,
-                    Name: "Kids Winter Jacket",
-                    Category: "kids",
-                    Price: 49.99,
-                    OriginalPrice: 69.99,
-                    Image: "https://images.unsplash.com/photo-1558769132-cb25b5ba7c73?w=500",
-                    Badge: "Sale",
-                    Rating: 4.6,
-                    Reviews: 98,
-                    Description: "Warm and waterproof winter jacket for kids. Features adjustable hood and multiple pockets for convenience.",
-                    Stock: 65,
-                    Status: "Active"
-                },
-                {
-                    ID: 10,
-                    Name: "Designer Sunglasses",
-                    Category: "accessories",
-                    Price: 39.99,
-                    Image: "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=500",
-                    Badge: "New",
-                    Rating: 4.7,
-                    Reviews: 204,
-                    Description: "Stylish sunglasses with UV protection. Available in multiple frame colors and lens types for your perfect look.",
-                    Stock: 120,
-                    Status: "Active"
-                },
-                {
-                    ID: 11,
-                    Name: "Casual Linen Shirt",
-                    Category: "men",
-                    Price: 45.99,
-                    Image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=500",
-                    Badge: "",
-                    Rating: 4.3,
-                    Reviews: 142,
-                    Description: "Breathable linen shirt perfect for summer. Lightweight fabric keeps you cool while maintaining a stylish appearance.",
-                    Stock: 55,
-                    Status: "Active"
-                },
-                {
-                    ID: 12,
-                    Name: "Elegant Evening Gown",
-                    Category: "women",
-                    Price: 129.99,
-                    OriginalPrice: 179.99,
-                    Image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=500",
-                    Badge: "Sale",
-                    Rating: 4.8,
-                    Reviews: 178,
-                    Description: "Stunning evening gown perfect for special occasions. Features elegant draping and a flattering silhouette.",
-                    Stock: 30,
-                    Status: "Active"
-                }
-            ];
-            
-            products = sampleProducts;
-            displayProducts();
-        }
-
         // Cart Management
         function addToCart(productId) {
-            const product = products.find(p => p.ID === productId);
-            const existingItem = cart.find(item => item.ID === productId);
+            const product = products.find(p => p.ID == productId);
+            if (!product) {
+                showToast('Product not found', 'error');
+                return;
+            }
+
+            const existingItem = cart.find(item => item.ID == productId);
 
             if (existingItem) {
                 existingItem.quantity++;
@@ -1666,7 +1586,7 @@
             }
 
             updateCart();
-            showToast(`${product.Name} added to cart!`);
+            showToast(`${product.Name} added to cart!`, 'success');
         }
 
         function updateCart() {
@@ -1690,7 +1610,7 @@
             } else {
                 cartItems.innerHTML = cart.map(item => `
                     <div class="cart-item">
-                        <img src="${item.Image}" alt="${item.Name}" class="cart-item-image">
+                        <img src="${item.Image || 'https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500'}" alt="${item.Name}" class="cart-item-image">
                         <div class="cart-item-info">
                             <div class="cart-item-name">${item.Name}</div>
                             <div class="cart-item-price">$${parseFloat(item.Price).toFixed(2)}</div>
@@ -1714,7 +1634,7 @@
         }
 
         function updateQuantity(productId, change) {
-            const item = cart.find(item => item.ID === productId);
+            const item = cart.find(item => item.ID == productId);
             if (item) {
                 item.quantity += change;
                 if (item.quantity <= 0) {
@@ -1726,9 +1646,9 @@
         }
 
         function removeFromCart(productId) {
-            cart = cart.filter(item => item.ID !== productId);
+            cart = cart.filter(item => item.ID != productId);
             updateCart();
-            showToast('Item removed from cart');
+            showToast('Item removed from cart', 'info');
         }
 
         // Generate random order ID
@@ -1744,7 +1664,6 @@
         // Submit Order - FIXED VERSION
         async function submitOrder(orderData) {
             try {
-                // Create URL with parameters
                 const params = new URLSearchParams({
                     action: 'submitOrder',
                     orderId: orderData.orderId,
@@ -1759,20 +1678,22 @@
 
                 const url = `${GOOGLE_SCRIPT_URL}?${params.toString()}`;
                 
-                console.log('Submitting order to:', url);
+                console.log('Submitting order...');
                 
                 const response = await fetch(url, {
                     method: 'GET',
                     redirect: 'follow'
                 });
                 
-                const result = await response.json();
-                console.log('Order submission result:', result);
+                const textResponse = await response.text();
+                console.log('Order response:', textResponse);
+                
+                const result = JSON.parse(textResponse);
 
                 if (result.status === 'success') {
                     return {
                         success: true,
-                        orderId: result.data.orderId
+                        orderId: orderData.orderId
                     };
                 } else {
                     throw new Error(result.message || 'Order submission failed');
@@ -1784,14 +1705,6 @@
                     error: error.message
                 };
             }
-        }
-
-        // Filter Products
-        function filterProducts(category) {
-            currentFilter = category;
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            document.querySelector(`[data-filter="${category}"]`).classList.add('active');
-            displayProducts();
         }
 
         // Event Listeners
@@ -1859,7 +1772,7 @@
             // Checkout modal
             document.getElementById('proceedCheckout').addEventListener('click', () => {
                 if (cart.length === 0) {
-                    showToast('Your cart is empty!');
+                    showToast('Your cart is empty!', 'error');
                     return;
                 }
                 document.getElementById('checkoutModal').classList.add('active');
@@ -1877,21 +1790,20 @@
             document.getElementById('checkoutForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
-                const customerName = document.getElementById('customerName').value;
-                const email = document.getElementById('email').value;
-                const phone = document.getElementById('phone').value;
-                const address = document.getElementById('address').value;
+                const customerName = document.getElementById('customerName').value.trim();
+                const email = document.getElementById('email').value.trim();
+                const phone = document.getElementById('phone').value.trim();
+                const address = document.getElementById('address').value.trim();
                 const paymentMethod = document.getElementById('paymentMethod').value;
                 
                 if (!customerName || !email || !phone || !address || !paymentMethod) {
-                    showToast('Please fill all the required fields!');
+                    showToast('Please fill all the required fields!', 'error');
                     return;
                 }
 
                 const orderId = generateOrderId();
                 const total = cart.reduce((sum, item) => sum + (parseFloat(item.Price) * item.quantity), 0);
 
-                // Prepare products data for submission
                 const productsData = cart.map(item => ({
                     id: item.ID,
                     name: item.Name,
@@ -1912,7 +1824,6 @@
                     status: 'Pending'
                 };
 
-                // Show loading state
                 const submitBtn = document.querySelector('.submit-order-btn');
                 const originalText = submitBtn.innerHTML;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
@@ -1920,18 +1831,18 @@
 
                 const result = await submitOrder(orderData);
 
-                // Restore button
                 submitBtn.innerHTML = originalText;
                 submitBtn.disabled = false;
 
                 if (result.success) {
+                    showToast('Order placed successfully!', 'success');
                     alert(`Order submitted successfully!\n\nOrder ID: ${orderId}\nTotal: $${total.toFixed(2)}\n\nThank you for shopping with us!`);
                     cart = [];
                     updateCart();
                     document.getElementById('checkoutModal').classList.remove('active');
                     document.getElementById('checkoutForm').reset();
                 } else {
-                    showToast('Error submitting order: ' + (result.error || 'Please try again'));
+                    showToast('Error: ' + (result.error || 'Please try again'), 'error');
                 }
             });
 
@@ -1951,10 +1862,10 @@
         });
 
         // Toast Notification
-        function showToast(message) {
+        function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
             toast.textContent = message;
-            toast.classList.add('active');
+            toast.className = 'toast active ' + type;
             setTimeout(() => {
                 toast.classList.remove('active');
             }, 3000);
@@ -1968,6 +1879,15 @@
                 !cartSidebar.contains(e.target) && 
                 !cartIcon.contains(e.target)) {
                 cartSidebar.classList.remove('active');
+            }
+        });
+
+        // Close modals on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('productModal').classList.remove('active');
+                document.getElementById('checkoutModal').classList.remove('active');
+                document.getElementById('cartSidebar').classList.remove('active');
             }
         });
     </script>
