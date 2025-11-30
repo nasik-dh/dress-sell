@@ -1285,7 +1285,7 @@
 
     <script>
     // Configuration - UPDATED TO USE SAME URL AS STORE
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwcdcZ_enRAFmpuH_G9585-IraxDOeoYucdrPPC_68bg9MFTYbBwLpTFRj_uR814SLXkQ/exec';
+    const SCRIPT_URL = 'https://cors-anywhere.herokuapp.com/https://script.google.com/macros/s/AKfycbw-oe78oYUcctK3dAN5CWFh5I_oRj4p0UXt1scS1C_5Cdd7xIYR0gYAW89NqxUScf1oMA/exec';
 
     // Add this function to debug API calls
     async function testConnection() {
@@ -2207,6 +2207,56 @@
     });
 
     console.log('Admin panel initialized successfully');
+    // JSONP fallback for CORS issues
+function jsonpRequest(url, callbackName) {
+    return new Promise((resolve, reject) => {
+        // Create a unique callback function name
+        const uniqueCallback = callbackName + '_' + Date.now();
+        
+        // Create script element
+        const script = document.createElement('script');
+        script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + uniqueCallback;
+        
+        // Define the callback function
+        window[uniqueCallback] = function(data) {
+            // Clean up
+            delete window[uniqueCallback];
+            document.head.removeChild(script);
+            
+            resolve(data);
+        };
+        
+        // Error handling
+        script.onerror = function() {
+            delete window[uniqueCallback];
+            document.head.removeChild(script);
+            reject(new Error('JSONP request failed'));
+        };
+        
+        // Add to document
+        document.head.appendChild(script);
+    });
+}
+
+// Modified loadProducts function with JSONP fallback
+async function loadProductsWithFallback() {
+    try {
+        // First try regular fetch
+        const response = await fetch(GOOGLE_SCRIPT_URL + '?action=getProducts');
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.log('Fetch failed, trying JSONP:', error);
+        // Fallback to JSONP
+        try {
+            const result = await jsonpRequest(GOOGLE_SCRIPT_URL + '?action=getProducts', 'handleProducts');
+            return result;
+        } catch (jsonpError) {
+            console.log('JSONP also failed:', jsonpError);
+            throw jsonpError;
+        }
+    }
+}
 </script>
 </body>
 </html>
