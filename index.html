@@ -1364,8 +1364,8 @@
     <div class="toast" id="toast"></div>
 
     <script>
-    // Configuration - UPDATE THIS URL WITH YOUR GOOGLE APPS SCRIPT URL
-    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw2H5RBzQnf45jGWKpkn1prTE8OEB4EjRy26dmNlN22YgkmwAMMJiIM1AexgX3Oq3fsrg/exec';
+    // Configuration - Use the same URL for both admin and store
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwcdcZ_enRAFmpuH_G9585-IraxDOeoYucdrPPC_68bg9MFTYbBwLpTFRj_uR814SLXkQ/exec';
 
     // Global variables
     let cart = [];
@@ -1389,12 +1389,7 @@
             const timestamp = new Date().getTime();
             const url = `${GOOGLE_SCRIPT_URL}?action=getProducts&_=${timestamp}`;
             
-            const response = await fetch(url, {
-                method: 'GET',
-                mode: 'no-cors' // Remove this line if it causes issues
-            });
-            
-            console.log('Response status:', response.status);
+            const response = await fetch(url);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -1405,7 +1400,7 @@
             
             if (result.status === 'success') {
                 products = result.data || [];
-                console.log('Products loaded:', products.length);
+                console.log('Products loaded successfully:', products.length);
                 
                 if (products.length > 0) {
                     displayProducts();
@@ -1424,63 +1419,34 @@
         }
     }
 
-    // Alternative load method with better error handling
-    async function loadProductsWithRetry() {
-        try {
-            await loadProducts();
-        } catch (error) {
-            console.log('First attempt failed, trying alternative method...');
-            await loadProductsAlternative();
-        }
-    }
-
-    // Alternative method using different approach
-    async function loadProductsAlternative() {
+    function showNoProductsMessage() {
         const productGrid = document.getElementById('productGrid');
-        const loading = document.getElementById('loading');
-        
-        loading.style.display = 'block';
-        productGrid.innerHTML = '';
-
-        try {
-            // Try with different parameters
-            const url = `${GOOGLE_SCRIPT_URL}?action=getProducts&source=website&type=all`;
-            console.log('Trying alternative URL:', url);
-            
-            const response = await fetch(url);
-            const text = await response.text();
-            console.log('Alternative response text:', text);
-            
-            let result;
-            try {
-                result = JSON.parse(text);
-            } catch (e) {
-                // If JSON parsing fails, try to extract JSON from text
-                const jsonMatch = text.match(/\{.*\}/);
-                if (jsonMatch) {
-                    result = JSON.parse(jsonMatch[0]);
-                } else {
-                    throw new Error('Invalid JSON response');
-                }
-            }
-            
-            if (result.status === 'success') {
-                products = result.data || [];
-                console.log('Products loaded via alternative method:', products.length);
-                displayProducts();
-            } else {
-                throw new Error(result.message || 'Failed to load products');
-            }
-        } catch (error) {
-            console.error('Alternative method failed:', error);
-            // Load sample products as fallback
-            loadSampleProducts();
-        } finally {
-            loading.style.display = 'none';
-        }
+        productGrid.innerHTML = `
+            <div class="error-message" style="grid-column: 1/-1;">
+                <i class="fas fa-box-open"></i>
+                <h3>No Products Available</h3>
+                <p>There are no products in the database yet. Please add products using the admin panel.</p>
+                <button onclick="loadSampleProducts()">Load Sample Products</button>
+            </div>
+        `;
     }
 
-    // Fallback sample products
+    function showErrorMessage(error) {
+        const productGrid = document.getElementById('productGrid');
+        productGrid.innerHTML = `
+            <div class="error-message" style="grid-column: 1/-1;">
+                <i class="fas fa-exclamation-triangle"></i>
+                <h3>Error Loading Products</h3>
+                <p>${error}</p>
+                <div style="margin-top: 20px;">
+                    <button onclick="loadProducts()" style="margin-right: 10px;">Retry</button>
+                    <button onclick="loadSampleProducts()">Load Sample Products</button>
+                </div>
+            </div>
+        `;
+    }
+
+    // Sample products fallback
     function loadSampleProducts() {
         console.log('Loading sample products as fallback...');
         
@@ -1540,66 +1506,11 @@
                 Reviews: 203,
                 Image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=500",
                 Status: "Active"
-            },
-            {
-                ID: 5,
-                Name: "Sports Running Shoes",
-                Category: "men",
-                Price: 79.99,
-                OriginalPrice: 99.99,
-                Description: "Comfortable running shoes for athletic activities",
-                Badge: "Sale",
-                Stock: 40,
-                Rating: 4.6,
-                Reviews: 156,
-                Image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500",
-                Status: "Active"
-            },
-            {
-                ID: 6,
-                Name: "Designer Sunglasses",
-                Category: "accessories",
-                Price: 49.99,
-                OriginalPrice: "",
-                Description: "UV protection sunglasses with stylish design",
-                Badge: "New",
-                Stock: 60,
-                Rating: 4.4,
-                Reviews: 78,
-                Image: "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=500",
-                Status: "Active"
             }
         ];
         
         displayProducts();
         showToast('Loaded sample products. Check console for Google Sheets connection issues.', 'info');
-    }
-
-    function showNoProductsMessage() {
-        const productGrid = document.getElementById('productGrid');
-        productGrid.innerHTML = `
-            <div class="error-message" style="grid-column: 1/-1;">
-                <i class="fas fa-box-open"></i>
-                <h3>No Products Available</h3>
-                <p>There are no products in the database yet. Please add products using the admin panel.</p>
-                <button onclick="loadSampleProducts()">Load Sample Products</button>
-            </div>
-        `;
-    }
-
-    function showErrorMessage(error) {
-        const productGrid = document.getElementById('productGrid');
-        productGrid.innerHTML = `
-            <div class="error-message" style="grid-column: 1/-1;">
-                <i class="fas fa-exclamation-triangle"></i>
-                <h3>Error Loading Products</h3>
-                <p>${error}</p>
-                <div style="margin-top: 20px;">
-                    <button onclick="loadProducts()" style="margin-right: 10px;">Retry</button>
-                    <button onclick="loadSampleProducts()">Load Sample Products</button>
-                </div>
-            </div>
-        `;
     }
 
     function displayProducts() {
@@ -1640,20 +1551,20 @@
         switch(sortBy) {
             case 'price-low':
                 return sortedArray.sort((a, b) => {
-                    const priceA = parseFloat(a.Price || a.price || 0);
-                    const priceB = parseFloat(b.Price || b.price || 0);
+                    const priceA = parseFloat(a.Price || 0);
+                    const priceB = parseFloat(b.Price || 0);
                     return priceA - priceB;
                 });
             case 'price-high':
                 return sortedArray.sort((a, b) => {
-                    const priceA = parseFloat(a.Price || a.price || 0);
-                    const priceB = parseFloat(b.Price || b.price || 0);
+                    const priceA = parseFloat(a.Price || 0);
+                    const priceB = parseFloat(b.Price || 0);
                     return priceB - priceA;
                 });
             case 'newest':
                 return sortedArray.sort((a, b) => {
-                    const dateA = new Date(a.Timestamp || a.timestamp || 0);
-                    const dateB = new Date(b.Timestamp || b.timestamp || 0);
+                    const dateA = new Date(a.Timestamp || 0);
+                    const dateB = new Date(b.Timestamp || 0);
                     return dateB - dateA;
                 });
             default:
@@ -1666,16 +1577,15 @@
         const card = document.createElement('div');
         card.className = 'product-card';
         
-        // Handle different field name possibilities
-        const productName = product.Name || product.name || 'Unnamed Product';
-        const productCategory = product.Category || product.category || 'General';
-        const productPrice = parseFloat(product.Price || product.price || 0);
-        const originalPrice = parseFloat(product.OriginalPrice || product.originalPrice || 0);
-        const productRating = parseFloat(product.Rating || product.rating || 0);
-        const productReviews = product.Reviews || product.reviews || 0;
-        const productBadge = product.Badge || product.badge || '';
-        const productImage = product.Image || product.image || 'https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500';
-        const productId = product.ID || product.id;
+        const productName = product.Name || 'Unnamed Product';
+        const productCategory = product.Category || 'General';
+        const productPrice = parseFloat(product.Price || 0);
+        const originalPrice = parseFloat(product.OriginalPrice || 0);
+        const productRating = parseFloat(product.Rating || 0);
+        const productReviews = product.Reviews || 0;
+        const productBadge = product.Badge || '';
+        const productImage = product.Image || 'https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500';
+        const productId = product.ID;
         
         const stars = '★'.repeat(Math.floor(productRating)) + '☆'.repeat(5 - Math.floor(productRating));
         const hasDiscount = originalPrice > productPrice;
@@ -1715,19 +1625,18 @@
 
     // View Product Details
     function viewProductDetails(productId) {
-        const product = products.find(p => (p.ID == productId || p.id == productId));
+        const product = products.find(p => p.ID == productId);
         if (product) {
             currentProductId = productId;
             
-            // Handle different field name possibilities
-            const productName = product.Name || product.name;
-            const productCategory = product.Category || product.category;
-            const productPrice = parseFloat(product.Price || product.price || 0);
-            const originalPrice = parseFloat(product.OriginalPrice || product.originalPrice || 0);
-            const productRating = parseFloat(product.Rating || product.rating || 0);
-            const productReviews = product.Reviews || product.reviews || 0;
-            const productDescription = product.Description || product.description || 'Premium quality product with excellent craftsmanship.';
-            const productImage = product.Image || product.image || 'https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500';
+            const productName = product.Name;
+            const productCategory = product.Category;
+            const productPrice = parseFloat(product.Price || 0);
+            const originalPrice = parseFloat(product.OriginalPrice || 0);
+            const productRating = parseFloat(product.Rating || 0);
+            const productReviews = product.Reviews || 0;
+            const productDescription = product.Description || 'Premium quality product with excellent craftsmanship.';
+            const productImage = product.Image || 'https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500';
             
             // Update modal content
             document.getElementById('modalImage').src = productImage;
@@ -1760,7 +1669,7 @@
 
     // Cart Management
     function addToCart(productId) {
-        const product = products.find(p => (p.ID == productId || p.id == productId));
+        const product = products.find(p => p.ID == productId);
         if (!product) {
             showToast('Product not found', 'error');
             return;
@@ -1773,7 +1682,6 @@
         } else {
             cart.push({
                 ...product,
-                ID: productId,
                 quantity: 1,
                 size: 'M',
                 color: 'Black'
@@ -1781,7 +1689,7 @@
         }
 
         updateCart();
-        showToast(`${product.Name || product.name} added to cart!`, 'success');
+        showToast(`${product.Name} added to cart!`, 'success');
     }
 
     function updateCart() {
@@ -1804,9 +1712,9 @@
             cartFooter.style.display = 'none';
         } else {
             cartItems.innerHTML = cart.map(item => {
-                const itemName = item.Name || item.name;
-                const itemPrice = parseFloat(item.Price || item.price || 0);
-                const itemImage = item.Image || item.image || 'https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500';
+                const itemName = item.Name;
+                const itemPrice = parseFloat(item.Price || 0);
+                const itemImage = item.Image || 'https://images.unsplash.com/photo-1560769684-5503c9d713b2?w=500';
                 
                 return `
                     <div class="cart-item">
@@ -1828,7 +1736,7 @@
             }).join('');
             
             const total = cart.reduce((sum, item) => {
-                const itemPrice = parseFloat(item.Price || item.price || 0);
+                const itemPrice = parseFloat(item.Price || 0);
                 return sum + (itemPrice * item.quantity);
             }, 0);
             
@@ -1885,12 +1793,8 @@
             
             console.log('Submitting order to:', url);
             
-            const response = await fetch(url, {
-                method: 'GET'
-            });
-            
+            const response = await fetch(url);
             const result = await response.json();
-            console.log('Order submission result:', result);
 
             if (result.status === 'success') {
                 return {
@@ -1911,10 +1815,8 @@
 
     // Event Listeners
     document.addEventListener('DOMContentLoaded', () => {
-        // Try to load products from Google Sheets, fallback to samples if fails
-        loadProductsWithRetry();
+        loadProducts();
         
-        // ... rest of your event listeners remain the same ...
         // Cart toggle
         document.getElementById('cartIcon').addEventListener('click', () => {
             document.getElementById('cartSidebar').classList.add('active');
@@ -2007,14 +1909,14 @@
 
             const orderId = generateOrderId();
             const total = cart.reduce((sum, item) => {
-                const itemPrice = parseFloat(item.Price || item.price || 0);
+                const itemPrice = parseFloat(item.Price || 0);
                 return sum + (itemPrice * item.quantity);
             }, 0);
 
             const productsData = cart.map(item => ({
                 id: item.ID,
-                name: item.Name || item.name,
-                price: item.Price || item.price,
+                name: item.Name,
+                price: item.Price,
                 quantity: item.quantity,
                 size: item.size,
                 color: item.color
