@@ -1591,79 +1591,83 @@
         }
 
         // Handle product form submission
-        async function handleProductSubmit(e) {
-            e.preventDefault();
+async function handleProductSubmit(e) {
+    e.preventDefault();
 
-            const submitBtn = document.getElementById('submit-btn');
-            const loadingState = document.getElementById('loading-state');
-            const successMessage = document.getElementById('success-message');
-            const errorMessage = document.getElementById('error-message');
+    const submitBtn = document.getElementById('submit-btn');
+    const loadingState = document.getElementById('loading-state');
+    const successMessage = document.getElementById('success-message');
+    const errorMessage = document.getElementById('error-message');
 
-            successMessage.style.display = 'none';
-            errorMessage.style.display = 'none';
+    successMessage.style.display = 'none';
+    errorMessage.style.display = 'none';
 
-            if (!validateProductForm()) {
-                errorMessage.textContent = 'Please fill in all required fields and upload an image.';
-                errorMessage.style.display = 'block';
-                return;
-            }
+    if (!validateProductForm()) {
+        errorMessage.textContent = 'Please fill in all required fields and upload an image.';
+        errorMessage.style.display = 'block';
+        return;
+    }
 
-            submitBtn.disabled = true;
-            loadingState.style.display = 'block';
+    submitBtn.disabled = true;
+    loadingState.style.display = 'block';
 
-            try {
-                const formData = new FormData(e.target);
-                const productData = Object.fromEntries(formData);
+    try {
+        const formData = new FormData(e.target);
+        const productData = Object.fromEntries(formData);
 
-                // Use uploaded image URL
-                const imageUrl = document.getElementById('product_image_url').value;
-                if (imageUrl) {
-                    productData.image = imageUrl;
-                }
-
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        action: 'addProduct',
-                        ...productData
-                    }).toString()
-                });
-
-                const result = await response.json();
-
-                if (result.status === 'success') {
-                    loadingState.style.display = 'none';
-                    successMessage.style.display = 'block';
-                    e.target.reset();
-                    removeFile('product');
-                    
-                    // Refresh data
-                    loadDashboardStats();
-                    if (document.getElementById('manageProducts-tab').classList.contains('active')) {
-                        loadProducts();
-                    }
-                    
-                    // Hide success message after 3 seconds
-                    setTimeout(() => {
-                        successMessage.style.display = 'none';
-                    }, 3000);
-                } else {
-                    throw new Error(result.message);
-                }
-
-            } catch (error) {
-                console.error('Error adding product:', error);
-                loadingState.style.display = 'none';
-                document.getElementById('error-text').textContent = error.message;
-                errorMessage.style.display = 'block';
-            } finally {
-                submitBtn.disabled = false;
-            }
+        // Use uploaded image URL - FIXED: Use imageUrl field
+        const imageUrl = document.getElementById('product_image_url').value;
+        console.log('Image URL to submit:', imageUrl); // Debug log
+        
+        if (imageUrl) {
+            productData.imageUrl = imageUrl; // Use imageUrl instead of image
         }
 
+        console.log('Submitting product data:', productData); // Debug log
+
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'addProduct',
+                ...productData
+            }).toString()
+        });
+
+        const result = await response.json();
+        console.log('Server response:', result); // Debug log
+
+        if (result.status === 'success') {
+            loadingState.style.display = 'none';
+            successMessage.style.display = 'block';
+            e.target.reset();
+            removeFile('product');
+            
+            // Refresh data
+            loadDashboardStats();
+            if (document.getElementById('manageProducts-tab').classList.contains('active')) {
+                loadProducts();
+            }
+            
+            // Hide success message after 3 seconds
+            setTimeout(() => {
+                successMessage.style.display = 'none';
+            }, 3000);
+        } else {
+            throw new Error(result.message);
+        }
+
+    } catch (error) {
+        console.error('Error adding product:', error);
+        loadingState.style.display = 'none';
+        document.getElementById('error-text').textContent = error.message;
+        errorMessage.style.display = 'block';
+    } finally {
+        submitBtn.disabled = false;
+    }
+}
         function validateProductForm() {
             const form = document.getElementById('product-form');
             const requiredFields = form.querySelectorAll('input[required], textarea[required], select[required]');
@@ -1915,72 +1919,77 @@
         }
 
         // Handle edit product form submission
-        async function handleEditProductSubmit(e) {
-            e.preventDefault();
+async function handleEditProductSubmit(e) {
+    e.preventDefault();
 
-            const form = e.target;
-            const index = parseInt(form.getAttribute('data-index'));
-            const originalProduct = products[index];
-            
-            const submitBtn = document.getElementById('edit-submit-btn');
-            const loadingState = document.getElementById('edit-loading-state');
-            const successMessage = document.getElementById('edit-success-message');
-            const errorMessage = document.getElementById('edit-error-message');
+    const form = e.target;
+    const index = parseInt(form.getAttribute('data-index'));
+    const originalProduct = products[index];
+    
+    const submitBtn = document.getElementById('edit-submit-btn');
+    const loadingState = document.getElementById('edit-loading-state');
+    const successMessage = document.getElementById('edit-success-message');
+    const errorMessage = document.getElementById('edit-error-message');
 
-            successMessage.style.display = 'none';
-            errorMessage.style.display = 'none';
+    successMessage.style.display = 'none';
+    errorMessage.style.display = 'none';
 
-            submitBtn.disabled = true;
-            loadingState.style.display = 'block';
+    submitBtn.disabled = true;
+    loadingState.style.display = 'block';
 
-            try {
-                const formData = new FormData(form);
-                const productData = Object.fromEntries(formData);
+    try {
+        const formData = new FormData(form);
+        const productData = Object.fromEntries(formData);
 
-                // Use updated image URL if available
-                const editImageUrl = document.getElementById('edit_product_image_url').value;
-                if (editImageUrl) {
-                    productData.image = editImageUrl;
-                }
-
-                // Add product ID
-                productData.ID = originalProduct.ID;
-
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        action: 'updateProduct',
-                        ...productData
-                    }).toString()
-                });
-
-                const result = await response.json();
-
-                if (result.status === 'success') {
-                    loadingState.style.display = 'none';
-                    successMessage.style.display = 'block';
-                    
-                    setTimeout(() => {
-                        closeModal();
-                        loadProducts();
-                        loadDashboardStats();
-                    }, 1500);
-                } else {
-                    throw new Error(result.message);
-                }
-
-            } catch (error) {
-                console.error('Update error:', error);
-                loadingState.style.display = 'none';
-                document.getElementById('edit-error-text').textContent = error.message;
-                errorMessage.style.display = 'block';
-            } finally {
-                submitBtn.disabled = false;
-            }
+        // Use updated image URL if available - FIXED: Use imageUrl field
+        const editImageUrl = document.getElementById('edit_product_image_url').value;
+        console.log('Edit Image URL to submit:', editImageUrl); // Debug log
+        
+        if (editImageUrl) {
+            productData.imageUrl = editImageUrl; // Use imageUrl instead of image
         }
+
+        // Add product ID
+        productData.ID = originalProduct.ID;
+
+        console.log('Submitting edit product data:', productData); // Debug log
+
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                action: 'updateProduct',
+                ...productData
+            }).toString()
+        });
+
+        const result = await response.json();
+        console.log('Edit server response:', result); // Debug log
+
+        if (result.status === 'success') {
+            loadingState.style.display = 'none';
+            successMessage.style.display = 'block';
+            
+            setTimeout(() => {
+                closeModal();
+                loadProducts();
+                loadDashboardStats();
+            }, 1500);
+        } else {
+            throw new Error(result.message);
+        }
+
+    } catch (error) {
+        console.error('Update error:', error);
+        loadingState.style.display = 'none';
+        document.getElementById('edit-error-text').textContent = error.message;
+        errorMessage.style.display = 'block';
+    } finally {
+        submitBtn.disabled = false;
+    }
+}
 
         // Delete product
         async function deleteProduct(productId) {
