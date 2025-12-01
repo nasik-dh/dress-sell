@@ -1323,6 +1323,7 @@
     <script>
         // Configuration
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwbxP0c4eI1KvjrFYazyaqXTOpxF2X0tLuPuDtCmbczOA1V2yMs8aWMc115GMQNA8WIcA/exec';
+        const PRODUCTS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRuxfN3pkRvY7gU6w474iyADXj69wz4jVQI0qWMFqqJe0lmKBqSe8Z5yIwNZ5wnPmq_MNWaIjIWE6vo/pub?gid=0&single=true&output=csv';
 
         // Global variables
         let cart = [];
@@ -1330,8 +1331,9 @@
         let currentFilter = 'all';
         let currentSort = 'featured';
         let currentProductId = null;
+        let autoRefreshInterval;
 
-        // Load Products from Google Sheets
+        // Load Products from Google Sheets CSV
         async function loadProducts() {
             const productGrid = document.getElementById('productGrid');
             const loading = document.getElementById('loading');
@@ -1340,15 +1342,15 @@
             productGrid.innerHTML = '';
 
             try {
-                const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=getProducts`);
-                const result = await response.json();
-                
-                if (result.status === 'success') {
-                    products = result.data;
-                    displayProducts();
-                } else {
-                    throw new Error('Failed to load products');
+                const response = await fetch(PRODUCTS_CSV_URL);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
+
+                const csvText = await response.text();
+                products = parseCSV(csvText);
+                displayProducts();
+                
             } catch (error) {
                 console.error('Error loading products:', error);
                 showToast('Error loading products. Please try again later.');
@@ -1357,6 +1359,51 @@
             } finally {
                 loading.style.display = 'none';
             }
+        }
+
+        // Parse CSV function
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            if (lines.length < 2) return [];
+
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const data = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = parseCSVLine(lines[i]);
+                if (values.length === headers.length) {
+                    const row = {};
+                    headers.forEach((header, index) => {
+                        row[header] = values[index] || '';
+                    });
+                    data.push(row);
+                }
+            }
+
+            return data;
+        }
+
+        // Helper function to parse CSV line with proper comma handling
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            
+            result.push(current.trim());
+            return result;
         }
 
         function displayProducts() {
@@ -1507,141 +1554,6 @@
                     Description: "Beautiful summer dress with floral pattern. Lightweight and comfortable for warm weather. Features a flattering A-line silhouette and adjustable straps.",
                     Stock: 75,
                     Status: "Active"
-                },
-                {
-                    ID: 3,
-                    Name: "Kids Playful T-Shirt",
-                    Category: "kids",
-                    Price: 19.99,
-                    Image: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500",
-                    Badge: "",
-                    Rating: 4.3,
-                    Reviews: 89,
-                    Description: "Comfortable cotton t-shirt for kids with fun designs. Perfect for everyday wear. Made from soft, breathable fabric that's gentle on sensitive skin.",
-                    Stock: 100,
-                    Status: "Active"
-                },
-                {
-                    ID: 4,
-                    Name: "Designer Leather Handbag",
-                    Category: "accessories",
-                    Price: 149.99,
-                    OriginalPrice: 199.99,
-                    Image: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=500",
-                    Badge: "Sale",
-                    Rating: 4.7,
-                    Reviews: 342,
-                    Description: "Luxurious leather handbag with multiple compartments. Perfect for any occasion. Features gold-tone hardware and an adjustable shoulder strap.",
-                    Stock: 25,
-                    Status: "Active"
-                },
-                {
-                    ID: 5,
-                    Name: "Premium Wool Sweater",
-                    Category: "men",
-                    Price: 79.99,
-                    Image: "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=500",
-                    Badge: "",
-                    Rating: 4.6,
-                    Reviews: 187,
-                    Description: "Warm and comfortable wool sweater for cooler days. Features a classic crew neck and ribbed cuffs for a perfect fit.",
-                    Stock: 60,
-                    Status: "Active"
-                },
-                {
-                    ID: 6,
-                    Name: "Elegant Silk Blouse",
-                    Category: "women",
-                    Price: 69.99,
-                    OriginalPrice: 89.99,
-                    Image: "https://images.unsplash.com/photo-1581044777550-4cfa60707c03?w=500",
-                    Badge: "Sale",
-                    Rating: 4.4,
-                    Reviews: 231,
-                    Description: "Luxurious silk blouse with delicate details. Perfect for both office wear and special occasions. Easy to care for and maintain.",
-                    Stock: 45,
-                    Status: "Active"
-                },
-                {
-                    ID: 7,
-                    Name: "Casual Cotton T-Shirt",
-                    Category: "men",
-                    Price: 24.99,
-                    Image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500",
-                    Badge: "",
-                    Rating: 4.2,
-                    Reviews: 156,
-                    Description: "Comfortable cotton t-shirt perfect for everyday wear. Available in multiple colors and sizes for the perfect fit.",
-                    Stock: 80,
-                    Status: "Active"
-                },
-                {
-                    ID: 8,
-                    Name: "Stylish Running Shoes",
-                    Category: "accessories",
-                    Price: 89.99,
-                    OriginalPrice: 119.99,
-                    Image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500",
-                    Badge: "Sale",
-                    Rating: 4.5,
-                    Reviews: 312,
-                    Description: "High-performance running shoes with advanced cushioning technology. Perfect for athletes and casual runners alike.",
-                    Stock: 40,
-                    Status: "Active"
-                },
-                {
-                    ID: 9,
-                    Name: "Kids Winter Jacket",
-                    Category: "kids",
-                    Price: 49.99,
-                    OriginalPrice: 69.99,
-                    Image: "https://images.unsplash.com/photo-1558769132-cb25b5ba7c73?w=500",
-                    Badge: "Sale",
-                    Rating: 4.6,
-                    Reviews: 98,
-                    Description: "Warm and waterproof winter jacket for kids. Features adjustable hood and multiple pockets for convenience.",
-                    Stock: 65,
-                    Status: "Active"
-                },
-                {
-                    ID: 10,
-                    Name: "Designer Sunglasses",
-                    Category: "accessories",
-                    Price: 39.99,
-                    Image: "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=500",
-                    Badge: "New",
-                    Rating: 4.7,
-                    Reviews: 204,
-                    Description: "Stylish sunglasses with UV protection. Available in multiple frame colors and lens types for your perfect look.",
-                    Stock: 120,
-                    Status: "Active"
-                },
-                {
-                    ID: 11,
-                    Name: "Casual Linen Shirt",
-                    Category: "men",
-                    Price: 45.99,
-                    Image: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=500",
-                    Badge: "",
-                    Rating: 4.3,
-                    Reviews: 142,
-                    Description: "Breathable linen shirt perfect for summer. Lightweight fabric keeps you cool while maintaining a stylish appearance.",
-                    Stock: 55,
-                    Status: "Active"
-                },
-                {
-                    ID: 12,
-                    Name: "Elegant Evening Gown",
-                    Category: "women",
-                    Price: 129.99,
-                    OriginalPrice: 179.99,
-                    Image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=500",
-                    Badge: "Sale",
-                    Rating: 4.8,
-                    Reviews: 178,
-                    Description: "Stunning evening gown perfect for special occasions. Features elegant draping and a flattering silhouette.",
-                    Stock: 30,
-                    Status: "Active"
                 }
             ];
             
@@ -1651,8 +1563,8 @@
 
         // Cart Management
         function addToCart(productId) {
-            const product = products.find(p => p.ID === productId);
-            const existingItem = cart.find(item => item.ID === productId);
+            const product = products.find(p => p.ID == productId);
+            const existingItem = cart.find(item => item.ID == productId);
 
             if (existingItem) {
                 existingItem.quantity++;
@@ -1714,7 +1626,7 @@
         }
 
         function updateQuantity(productId, change) {
-            const item = cart.find(item => item.ID === productId);
+            const item = cart.find(item => item.ID == productId);
             if (item) {
                 item.quantity += change;
                 if (item.quantity <= 0) {
@@ -1726,7 +1638,7 @@
         }
 
         function removeFromCart(productId) {
-            cart = cart.filter(item => item.ID !== productId);
+            cart = cart.filter(item => item.ID != productId);
             updateCart();
             showToast('Item removed from cart');
         }
@@ -1775,6 +1687,9 @@
         // Event Listeners
         document.addEventListener('DOMContentLoaded', () => {
             loadProducts();
+            
+            // Start auto-refresh every 30 seconds
+            autoRefreshInterval = setInterval(loadProducts, 30000);
             
             // Cart toggle
             document.getElementById('cartIcon').addEventListener('click', () => {
@@ -1891,7 +1806,7 @@
                 } else {
                     showToast('Error submitting order. Please try again.');
                 }
-            });
+            }); 
 
             // Smooth scroll
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -1905,7 +1820,7 @@
                         });
                     }
                 });
-            });
+            }); 
         });
 
         // Toast Notification
