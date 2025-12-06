@@ -1,4 +1,4 @@
- // Configuration
+// Configuration
     const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwbxP0c4eI1KvjrFYazyaqXTOpxF2X0tLuPuDtCmbczOA1V2yMs8aWMc115GMQNA8WIcA/exec';
     const PRODUCTS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRuxfN3pkRvY7gU6w474iyADXj69wz4jVQI0qWMFqqJe0lmKBqSe8Z5yIwNZ5wnPmq_MNWaIjIWE6vo/pub?gid=512772452&single=true&output=csv';
     const ORDERS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRuxfN3pkRvY7gU6w474iyADXj69wz4jVQI0qWMFqqJe0lmKBqSe8Z5yIwNZ5wnPmq_MNWaIjIWE6vo/pub?gid=1214934860&single=true&output=csv';
@@ -6,7 +6,6 @@
     // Global variables
     let cart = [];
     let products = [];
-    let currentFilter = 'all';
     let currentSort = 'featured';
     let currentProductId = null;
     let generatedOrderId = '';
@@ -32,7 +31,6 @@
                 throw new Error('No products found in CSV');
             }
             
-            console.log('Products loaded:', products.length);
             displayProducts();
             
         } catch (error) {
@@ -110,11 +108,7 @@
         const productGrid = document.getElementById('productGrid');
         productGrid.innerHTML = '';
 
-        let filteredProducts = currentFilter === 'all' 
-            ? products 
-            : products.filter(p => p.Category.toLowerCase() === currentFilter.toLowerCase());
-
-        filteredProducts = sortProducts(filteredProducts, currentSort);
+        let filteredProducts = sortProducts(products, currentSort);
 
         if (filteredProducts.length === 0) {
             productGrid.innerHTML = `
@@ -127,10 +121,12 @@
             return;
         }
 
+        const fragment = document.createDocumentFragment();
         filteredProducts.forEach(product => {
             const productCard = createProductCard(product);
-            productGrid.appendChild(productCard);
+            fragment.appendChild(productCard);
         });
+        productGrid.appendChild(fragment);
     }
 
     function sortProducts(productsArray, sortBy) {
@@ -345,8 +341,6 @@
 
     async function submitOrder(orderData) {
         try {
-            console.log('Submitting order:', orderData);
-            
             const params = new URLSearchParams({
                 action: 'submitOrder',
                 orderId: orderData.orderId,
@@ -409,7 +403,6 @@
             const csvText = await response.text();
             const orders = parseOrdersCSV(csvText);
             
-            // Filter orders by phone number
             const userOrders = orders.filter(order => order.phone === phone);
 
             if (userOrders.length === 0) {
@@ -423,9 +416,7 @@
                 return;
             }
 
-            // Display orders with raw products data
             orderResults.innerHTML = userOrders.map(order => {
-                // Display the raw products data from CSV
                 const productsRaw = order.products || '';
                 
                 return `
@@ -488,7 +479,6 @@
             if (values.length >= headers.length) {
                 const row = {};
                 headers.forEach((header, index) => {
-                    // Keep the raw value, don't trim quotes
                     row[header] = values[index] || '';
                 });
                 
@@ -590,38 +580,17 @@
     document.addEventListener('DOMContentLoaded', () => {
         loadProducts();
         
-        // Setup dropdowns for both nav and products section
-        function setupDropdowns(categoryId, sortId) {
-            const categoryDropdown = document.getElementById(categoryId);
+        // Setup dropdowns
+        function setupDropdowns(sortId) {
             const sortDropdown = document.getElementById(sortId);
-
-            categoryDropdown.addEventListener('click', function(e) {
-                e.stopPropagation();
-                this.classList.toggle('active');
-                sortDropdown.classList.remove('active');
-            });
 
             sortDropdown.addEventListener('click', function(e) {
                 e.stopPropagation();
                 this.classList.toggle('active');
-                categoryDropdown.classList.remove('active');
             });
 
-            // Category filter
-            categoryDropdown.querySelectorAll('.dropdown-item').forEach(item => {
-                item.addEventListener('click', function() {
-                    // Update all category dropdowns
-                    document.querySelectorAll('[id^="categoryDropdown"] .dropdown-item').forEach(i => i.classList.remove('active'));
-                    document.querySelectorAll(`[data-filter="${this.dataset.filter}"]`).forEach(i => i.classList.add('active'));
-                    currentFilter = this.dataset.filter;
-                    displayProducts();
-                });
-            });
-
-            // Sort filter
             sortDropdown.querySelectorAll('.dropdown-item').forEach(item => {
                 item.addEventListener('click', function() {
-                    // Update all sort dropdowns
                     document.querySelectorAll('[id^="sortDropdown"] .dropdown-item').forEach(i => i.classList.remove('active'));
                     document.querySelectorAll(`[data-sort="${this.dataset.sort}"]`).forEach(i => i.classList.add('active'));
                     currentSort = this.dataset.sort;
@@ -630,11 +599,9 @@
             });
         }
 
-        // Setup both sets of dropdowns
-        setupDropdowns('categoryDropdown', 'sortDropdown');
-        setupDropdowns('categoryDropdownProducts', 'sortDropdownProducts');
+        setupDropdowns('sortDropdown');
+        setupDropdowns('sortDropdownProducts');
 
-        // Close dropdowns when clicking outside
         document.addEventListener('click', () => {
             document.querySelectorAll('.dropdown').forEach(dropdown => {
                 dropdown.classList.remove('active');
@@ -677,7 +644,7 @@
             document.getElementById('sideMenu').classList.remove('active');
         });
 
-        // Profile - Track Orders
+        // Profile
         document.getElementById('profileIcon').addEventListener('click', () => {
             document.getElementById('profileModal').classList.add('active');
         });
@@ -714,21 +681,6 @@
             }
         });
 
-        // Size and color selection
-        document.querySelectorAll('.size-option').forEach(option => {
-            option.addEventListener('click', function() {
-                document.querySelectorAll('.size-option').forEach(o => o.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
-
-        document.querySelectorAll('.color-option').forEach(option => {
-            option.addEventListener('click', function() {
-                document.querySelectorAll('.color-option').forEach(o => o.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
-
         // Buy Now
         document.getElementById('buyNowBtn').addEventListener('click', () => {
             if (cart.length === 0) {
@@ -740,6 +692,10 @@
         });
 
         // Checkout modal
+        document.getElementById('closeCheckout').addEventListener('click', () => {
+            document.getElementById('checkoutModal').classList.remove('active');
+        });
+
         document.getElementById('checkoutModal').addEventListener('click', (e) => {
             if (e.target === document.getElementById('checkoutModal')) {
                 document.getElementById('checkoutModal').classList.remove('active');
